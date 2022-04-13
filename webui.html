@@ -1,0 +1,88 @@
+<html>
+<head>
+	<title>Camera Control</title>
+	
+	<style type="text/css">
+		html, body {
+			height: 100%;
+			margin: 0;
+			font-family: "Roboto", "Arial", sans-serif;
+			font-size: 120%;
+		}
+		#main {
+			display: flex;
+			flex-direction: column;
+			width: 100%;
+			height: 100%;
+		}
+		#main > div {
+			flex-grow: 1;
+			background: #eee;
+			border-radius: 8px;
+			margin: 8px;
+			padding: 8px;
+			border-style: solid;
+		}
+		#control-button {
+			vertical-align: middle;
+			display: flex;
+		}
+		#control-button.start {
+			border-color: green;
+			background: rgba(0, 128, 0, 0.3);
+		}
+		#control-button.stop {
+			border-color: red;
+			background: rgba(255, 0, 0, 0.3);
+		}
+		.center {
+			margin: auto;
+		}
+	</style>
+	
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+</head>
+<body>
+	<div id="main">
+		<div>
+			<h4>Status</h4>
+			<p><span id="connected-icon"></span> <span id="connected-text"></span></p>
+			<p><span id="rec"></span></p>
+			<p><span id="remaining"></span></p>
+		</div>
+		<div id="control-button">
+			<div class="center">
+				<span id="control-button-text"></span>
+			</div>
+		</div>
+	</div>
+
+	
+	<script type="text/javascript">
+		function updatePage(data) {
+			document.getElementById("connected-icon").innerHTML = data["connected"] ? "✅" : "❌";
+			document.getElementById("connected-text").innerHTML = data["connected"] ? "Camera connected" : "Camera not connected";
+			document.getElementById("rec").innerHTML = data["rec"] ? (data["should_record"] ? "⏺️ Recording" : "⏺️ stopping recording...") : (data["should_record"] ? "⏸️ starting recording..." : "⏸️ Paused");
+			document.getElementById("remaining").innerHTML = Math.floor(data["remaining"] / 60) + ":" + data["remaining"] % 60 + " remaining";
+			
+			document.getElementById("control-button").className = data["should_record"] ? "stop" : "start"
+			document.getElementById("control-button-text").innerHTML = data["should_record"] ? "stop recording" : "start recording"
+			
+			document.getElementById("control-button").onclick = function() {
+				document.getElementById("control-button-text").onclick = false;
+				fetch("/record", { method: 'POST', body: !data["should_record"] });
+				data["should_record"] = !data["should_record"];
+				updatePage(data);
+			}
+		}
+	
+		async function update() {
+			await fetch("/get_state").then(data => { return data.json() }).then(data => {
+				updatePage(data);
+			});
+			window.setTimeout(update, 1000);
+		}
+		window.setTimeout(update, 1000);
+	</script>
+</body>
+</html>
