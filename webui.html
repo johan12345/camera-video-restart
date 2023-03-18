@@ -38,6 +38,10 @@
 		.center {
 			margin: auto;
 		}
+		#cameras > .camera {
+			float: left;
+			margin-right: 16px;
+		}
 	</style>
 	
 	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -46,9 +50,7 @@
 	<div id="main">
 		<div>
 			<h4>Status</h4>
-			<p><span id="connected-icon"></span> <span id="connected-text"></span></p>
-			<p><span id="rec"></span></p>
-			<p><span id="remaining"></span></p>
+			<div id="cameras"></div>
 		</div>
 		<div id="control-button">
 			<div class="center">
@@ -60,10 +62,21 @@
 	
 	<script type="text/javascript">
 		function updatePage(data) {
-			document.getElementById("connected-icon").innerHTML = data["connected"] ? "✅" : "❌";
-			document.getElementById("connected-text").innerHTML = data["connected"] ? "Camera connected" : "Camera not connected";
-			document.getElementById("rec").innerHTML = data["rec"] ? (data["should_record"] ? "⏺️ Recording" : "⏺️ stopping recording...") : (data["should_record"] ? "⏸️ starting recording..." : "⏸️ Paused");
-			document.getElementById("remaining").innerHTML = Math.floor(data["remaining"] / 60) + ":" + data["remaining"] % 60 + " remaining";
+			for (var ip in data["cameras"]) {
+				if (document.getElementById("camera-" + ip) === null) {
+					document.getElementById("cameras").innerHTML += '<div id="camera-' + ip + '" class="camera">' +
+							'<h5>' + ip + '</h5>' +
+							'<p><span id="connected-icon-' + ip + '"></span> <span id="connected-text-' + ip + '"></span></p>' +
+							'<p><span id="rec-' + ip + '"></span></p>' +
+							'<p><span id="remaining-' + ip + '"></span></p>';
+				}
+
+				let camData = data["cameras"][ip];
+				document.getElementById("connected-icon-" + ip).innerHTML = camData["connected"] ? "✅" : "❌";
+				document.getElementById("connected-text-" + ip).innerHTML = camData["connected"] ? "Camera connected" : "Camera not connected";
+				document.getElementById("rec-" + ip).innerHTML = camData["rec"] ? (camData["should_record"] ? "⏺️ Recording" : "⏺️ stopping recording...") : camData["rec"] === false ? (camData["should_record"] ? "⏸️ starting recording..." : "⏸️ Paused") : "❔ state unknown";
+				document.getElementById("remaining-" + ip).innerHTML = camData["remaining"] ? Math.floor(camData["remaining"] / 60) + ":" + camData["remaining"] % 60 + " remaining" : "";
+			}
 			
 			document.getElementById("control-button").className = data["should_record"] ? "stop" : "start"
 			document.getElementById("control-button-text").innerHTML = data["should_record"] ? "stop recording" : "start recording"
