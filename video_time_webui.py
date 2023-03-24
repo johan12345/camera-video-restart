@@ -26,6 +26,15 @@ def camera_control_thread(ip, state):
             control.start_camera_control()
             my_state['connected'] = True
 
+            try:
+                # set Cinelike D profile
+                control.set_setting({
+                    'type': 'colormode',
+                    'value': 'cinelike_d'
+                })
+            except:
+                pass
+
             prev_remaining = dt.timedelta(hours=99)
             started = False
             while True:
