@@ -74,7 +74,7 @@
 				let camData = data["cameras"][ip];
 				document.getElementById("connected-icon-" + ip).innerHTML = camData["connected"] ? "✅" : "❌";
 				document.getElementById("connected-text-" + ip).innerHTML = camData["connected"] ? "Camera connected" : "Camera not connected";
-				document.getElementById("rec-" + ip).innerHTML = camData["rec"] ? (camData["should_record"] ? "⏺️ Recording" : "⏺️ stopping recording...") : camData["rec"] === false ? (camData["should_record"] ? "⏸️ starting recording..." : "⏸️ Paused") : "❔ state unknown";
+				document.getElementById("rec-" + ip).innerHTML = camData["rec"] ? (data["should_record"] ? "⏺️ Recording" : "⏺️ stopping recording...") : camData["rec"] === false ? (data["should_record"] ? "⏸️ starting recording..." : "⏸️ Paused") : "❔ state unknown";
 				document.getElementById("remaining-" + ip).innerHTML = camData["remaining"] ? Math.floor(camData["remaining"] / 60) + ":" + camData["remaining"] % 60 + " remaining" : "";
 			}
 			

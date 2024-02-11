@@ -1,116 +1,134 @@
 #!/usr/bin/python3
 
 import datetime as dt
-import json
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import traceback
+from typing import Optional
 
+from flask import Flask, request
+
+from camera_control import CameraState
 from camera_control.lumix_control import LumixCameraControl
 
-IP = ["192.168.50.11", "192.168.50.12"]
-state = {
-    'should_record': False,
-    'cameras': {i: {} for i in IP}
-}
+camera_types = [LumixCameraControl]
 
 
-def camera_control_thread(ip, state):
-    control = LumixCameraControl(ip)
+class App:
+    def __init__(self, host="0.0.0.0", port=8000):
+        self.should_record = False
+        self._control_threads = {}
+        self._discover_thread = threading.Thread(target=self._discover, daemon=True)
+        self._host = host
+        self._port = port
 
-    while True:
-        my_state = state['cameras'][ip]
-        my_state['connected'] = False
-        try:
-            with control:
-                my_state['connected'] = True
+        self._app = Flask(__name__)
+        self._app.add_url_rule("/", view_func=self._serve_index)
+        self._app.add_url_rule("/get_state", view_func=self._get_state)
+        self._app.add_url_rule("/record", view_func=self._record, methods=['POST'])
 
-                control.prepare()
+    def run(self):
+        self._discover_thread.start()
+        self._app.run(self._host, self._port)
 
-                prev_remaining = dt.timedelta(hours=99)
-                started = False
-                while True:
-                    cam_state = control.get_state()
+    def _serve_index(self):
+        return self._app.send_static_file("webui.html")
 
-                    should_record = state['should_record']
-                    if should_record:
-                        should_restart = False
-                        if cam_state.recording is not None:
-                            # restart if recording has stopped or less than 10s remaining
-                            should_restart = not cam_state.recording or cam_state.remaining < dt.timedelta(seconds=10)
-                        elif cam_state.remaining is not None:
-                            # restart if recording has not yet been started or remaining time has increased significantly
-                            should_restart = cam_state.remaining > prev_remaining + dt.timedelta(minutes=1) or not started
+    def _get_state(self):
+        return {
+            "should_record": self.should_record,
+            "cameras": {
+                ip: {
+                    "connected": self._control_threads[ip].connected,
+                    "rec": self._control_threads[ip].cam_state.recording if self._control_threads[ip].cam_state is not None else None,
+                    "remaining": self._control_threads[ip].cam_state.remaining if self._control_threads[ip].cam_state is not None else None,
+                } for ip in self._control_threads
+            }
+        }
 
-                        if should_restart:
-                            print('restarting recording for {}'.format(ip))
-                            try:
-                                control.video_record_stop()
-                            except:
-                                pass
+    def _record(self):
+        data = request.data
+        if data == b'true':
+            self.should_record = True
+        elif data == b'false':
+            self.should_record = False
+        return ""
 
-                            control.video_record_start()
-                            started = True
-                    else:
-                        if cam_state.recording or started:
-                            print('stopping recording for {}'.format(ip))
-                            try:
-                                control.video_record_stop()
-                            except:
-                                pass
-                            started = False
-                    prev_remaining = cam_state.remaining
-                    time.sleep(1)
-        except:
-            time.sleep(5)
-            pass
-    
-    
-class WebUiServer(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == "/":
-            self.send_response(200)
-            self.send_header("Content-type", "text/html; charset=utf-8")
-            self.end_headers()
-            with open("webui.html", "rb") as file:
-                for line in file:
-                    self.wfile.write(line)
-        elif self.path == "/get_state":
-            self.send_response(200)
-            self.send_header("Content-type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(bytes(json.dumps(state), "utf-8"))
-        else:
-            self.send_response(404)
-            
-    def do_POST(self):
-        if self.path == "/record":
-            self.send_response(204)   
-            self.end_headers() 
-            data = self.rfile.read(int(self.headers['Content-Length']))
-            if data == b'true':
-                state['should_record'] = True
-            elif data == b'false':
-                state['should_record'] = False
-        else:
-            self.send_response(404)
+    def _discover(self):
+        while True:
+            for type in camera_types:
+                cam_ips = type.discover()
+                for cam_ip in cam_ips:
+                    if cam_ip not in self._control_threads:
+                        thread = CameraControlThread(self, cam_ip, type)
+                        thread.start()
+                        self._control_threads[cam_ip] = thread
 
-for ip in IP:
-    thread = threading.Thread(target=camera_control_thread, args=(ip, state), daemon=True)
-    thread.start()
-
-server_address = ("0.0.0.0", 8000)
-server = HTTPServer(server_address, WebUiServer)
-print(f"Server starting at http://{server_address[0]}:{server_address[1]}")
-
-try:
-    server.serve_forever()
-except KeyboardInterrupt:
-    pass
-    
-server.server_close()
-print("Server stopped")
+            time.sleep(10)
 
 
+class CameraControlThread(threading.Thread):
+    def __init__(self, app, ip, type):
+        self.ip = ip
+        self._control = type(ip)
+
+        self.connected = False
+        self.cam_state: Optional[CameraState] = None
+        self._app = app
+
+        super().__init__(name=f"{type.__name__}({ip})", daemon=True)
+
+    def run(self):
+        print(f"Camera control starting for {self.ip}")
+        while True:
+            self.connected = False
+            try:
+                with self._control:
+                    self.connected = True
+
+                    self._control.prepare()
+
+                    prev_remaining = dt.timedelta(hours=99)
+                    started = False
+                    while True:
+                        self.cam_state = self._control.get_state()
+
+                        should_record = self._app.should_record
+                        if should_record:
+                            should_restart = False
+                            if self.cam_state.recording is not None:
+                                # restart if recording has stopped or less than 10s remaining
+                                should_restart = not self.cam_state.recording or self.cam_state.remaining < dt.timedelta(
+                                    seconds=10)
+                            elif self.cam_state.remaining is not None:
+                                # restart if recording has not yet been started or remaining time has increased significantly
+                                should_restart = self.cam_state.remaining > prev_remaining + dt.timedelta(
+                                    minutes=1) or not started
+
+                            if should_restart:
+                                print('restarting recording for {}'.format(self.ip))
+                                try:
+                                    self._control.video_record_stop()
+                                except:
+                                    pass
+
+                                self._control.video_record_start()
+                                started = True
+                        else:
+                            if self.cam_state.recording or started:
+                                print('stopping recording for {}'.format(self.ip))
+                                try:
+                                    self._control.video_record_stop()
+                                except:
+                                    pass
+                                started = False
+                        prev_remaining = self.cam_state.remaining
+                        time.sleep(1)
+            except:
+                traceback.print_exc()
+                time.sleep(5)
+                pass
 
 
+if __name__ == '__main__':
+    App().run()

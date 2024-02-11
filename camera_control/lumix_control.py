@@ -1,4 +1,8 @@
+from urllib.parse import urlparse
+
 import requests as r
+from ssdpy import SSDPClient
+
 from . import CameraControl, CameraState
 import xml.etree.ElementTree as ET
 import datetime as dt
@@ -9,10 +13,24 @@ class LumixCameraControl(CameraControl):
         self.cam_ip = cam_ip
         self.baseurl = "http://" + self.cam_ip + "/cam.cgi"
 
-    def __open__(self):
+    @classmethod
+    def discover(cls):
+        client = SSDPClient()
+        devices = client.m_search('urn:schemas-upnp-org:service:ContentDirectory:1')
+        ips = []
+        for device in devices:
+            if "Panasonic-UPnP" in device["server"]:
+                ip, port = urlparse(device["location"]).netloc.split(':')
+                ips.append(ip)
+        return ips
+
+    def __enter__(self):
         resp = r.get(self.baseurl, params={"mode": "camcmd", "value": "recmode"})
         self._check_response(resp)
         return self
+
+    def __exit__(self):
+        pass
 
     def prepare(self):
         try:

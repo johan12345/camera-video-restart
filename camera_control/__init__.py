@@ -11,6 +11,10 @@ class CameraState:
 
 
 class CameraControl(ABC):
+    @classmethod
+    def discover(cls):
+        pass
+
     def __open__(self):
         pass
 
