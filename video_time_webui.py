@@ -98,9 +98,10 @@ class WebUiServer(BaseHTTPRequestHandler):
 for ip in IP:
     thread = threading.Thread(target=camera_control_thread, args=(ip, state), daemon=True)
     thread.start()
-        
-server = HTTPServer(("0.0.0.0", 8000), WebUiServer)
-print("Server starting")
+
+server_address = ("0.0.0.0", 8000)
+server = HTTPServer(server_address, WebUiServer)
+print(f"Server starting at http://{server_address[0]}:{server_address[1]}")
 
 try:
     server.serve_forever()
