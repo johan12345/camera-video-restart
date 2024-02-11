@@ -4,10 +4,9 @@ import datetime as dt
 import json
 import threading
 import time
-import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from lumix_control import CameraControl
+from camera_control.lumix_control import LumixCameraControl
 
 IP = ["192.168.50.11", "192.168.50.12"]
 state = {
@@ -17,66 +16,51 @@ state = {
 
 
 def camera_control_thread(ip, state):
-    control = CameraControl(ip)  # IP of camera
+    control = LumixCameraControl(ip)
 
     while True:
         my_state = state['cameras'][ip]
         my_state['connected'] = False
         try:
-            control.start_camera_control()
-            my_state['connected'] = True
+            with control:
+                my_state['connected'] = True
 
-            try:
-                # set Cinelike D profile
-                control.set_setting({
-                    'type': 'colormode',
-                    'value': 'cinelike_d'
-                })
-            except:
-                pass
+                control.prepare()
 
-            prev_remaining = dt.timedelta(hours=99)
-            started = False
-            while True:
-                cam_state = ET.fromstring(control.get_state().text).find('state')
-                remaining = dt.timedelta(seconds=int(cam_state.find('video_remaincapacity').text))
+                prev_remaining = dt.timedelta(hours=99)
+                started = False
+                while True:
+                    cam_state = control.get_state()
 
-                rec_elem = cam_state.find('rec')
-                if rec_elem is not None:
-                    # G81
-                    rec = rec_elem.text == 'on'
-                else:
-                    rec = None
+                    should_record = state['should_record']
+                    if should_record:
+                        should_restart = False
+                        if cam_state.recording is not None:
+                            # restart if recording has stopped or less than 10s remaining
+                            should_restart = not cam_state.recording or cam_state.remaining < dt.timedelta(seconds=10)
+                        elif cam_state.remaining is not None:
+                            # restart if recording has not yet been started or remaining time has increased significantly
+                            should_restart = cam_state.remaining > prev_remaining + dt.timedelta(minutes=1) or not started
 
-                my_state['rec'] = rec
-                my_state['remaining'] = remaining.total_seconds()
+                        if should_restart:
+                            print('restarting recording for {}'.format(ip))
+                            try:
+                                control.video_record_stop()
+                            except:
+                                pass
 
-                should_record = state['should_record']
-                if should_record:
-                    if rec is not None:
-                        # G81
-                        should_restart = not rec or remaining < dt.timedelta(seconds=10)
+                            control.video_record_start()
+                            started = True
                     else:
-                        # GH3
-                        should_restart = remaining > prev_remaining + dt.timedelta(minutes=1) or not started
-                    if should_restart:
-                        print('restarting record for {}'.format(ip))
-                        try:
-                            control.video_record_stop()
-                        except:
-                            pass
-                        control.video_record_start()
-                        started = True
-                else:
-                    if rec:
-                        print('stopping recording for {}'.format(ip))
-                        try:
-                            control.video_record_stop()
-                        except:
-                            pass
-                        started = False
-                prev_remaining = remaining
-                time.sleep(1)
+                        if cam_state.recording or started:
+                            print('stopping recording for {}'.format(ip))
+                            try:
+                                control.video_record_stop()
+                            except:
+                                pass
+                            started = False
+                    prev_remaining = cam_state.remaining
+                    time.sleep(1)
         except:
             time.sleep(5)
             pass
