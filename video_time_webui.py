@@ -10,8 +10,9 @@ from flask import Flask, request
 
 from camera_control import CameraState
 from camera_control.lumix_control import LumixCameraControl
+from camera_control.sony_control import SonyCameraControl
 
-camera_types = [LumixCameraControl]
+camera_types = [LumixCameraControl, SonyCameraControl]
 
 
 class App:

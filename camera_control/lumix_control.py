@@ -9,6 +9,13 @@ import datetime as dt
 
 
 class LumixCameraControl(CameraControl):
+    """
+    Camera controller for Panasonic Lumix cameras
+
+    API discovered here: https://www.personal-view.com/talks/discussion/6703/control-your-gh3-from-a-web-browser-now-with-video-/p1
+    Python implementation based on https://github.com/palmdalian/python_lumix_control
+    """
+
     def __init__(self, cam_ip):
         self.cam_ip = cam_ip
         self.baseurl = "http://" + self.cam_ip + "/cam.cgi"
