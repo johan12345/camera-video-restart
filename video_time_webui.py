@@ -43,7 +43,7 @@ class App:
                 ip: {
                     "connected": self._control_threads[ip].connected,
                     "rec": self._control_threads[ip].cam_state.recording if self._control_threads[ip].cam_state is not None else None,
-                    "remaining": self._control_threads[ip].cam_state.remaining if self._control_threads[ip].cam_state is not None else None,
+                    "remaining": self._control_threads[ip].cam_state.remaining.total_seconds() if self._control_threads[ip].cam_state is not None else None,
                 } for ip in self._control_threads
             }
         }
