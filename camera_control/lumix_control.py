@@ -21,8 +21,8 @@ class LumixCameraControl(CameraControl):
         self.baseurl = "http://" + self.cam_ip + "/cam.cgi"
 
     @classmethod
-    def discover(cls):
-        client = SSDPClient()
+    def discover(cls, iface=None):
+        client = SSDPClient(iface=iface.encode("utf-8"))
         devices = client.m_search('urn:schemas-upnp-org:service:ContentDirectory:1')
         ips = []
         for device in devices:

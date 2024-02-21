@@ -16,12 +16,13 @@ camera_types = [LumixCameraControl, SonyCameraControl]
 
 
 class App:
-    def __init__(self, host="0.0.0.0", port=8000):
+    def __init__(self, host="0.0.0.0", port=8000, discover_iface="ap0"):
         self.should_record = False
         self._control_threads = {}
         self._discover_thread = threading.Thread(target=self._discover, daemon=True)
         self._host = host
         self._port = port
+        self._discover_iface = discover_iface
 
         self._app = Flask(__name__)
         self._app.add_url_rule("/", view_func=self._serve_index)
@@ -58,7 +59,7 @@ class App:
     def _discover(self):
         while True:
             for type in camera_types:
-                cam_ips = type.discover()
+                cam_ips = type.discover(iface=self._discover_iface)
                 for cam_ip in cam_ips:
                     if cam_ip not in self._control_threads:
                         thread = CameraControlThread(self, cam_ip, type)

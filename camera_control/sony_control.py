@@ -18,8 +18,8 @@ class SonyCameraControl(CameraControl):
         self.cam_url = cam_url
 
     @classmethod
-    def discover(cls):
-        client = SSDPClient()
+    def discover(cls, iface=None):
+        client = SSDPClient(iface=iface.encode("utf-8"))
         devices = client.m_search('urn:schemas-sony-com:service:ScalarWebAPI:1')
         urls = []
         for device in devices:
