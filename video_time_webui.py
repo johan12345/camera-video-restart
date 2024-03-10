@@ -59,12 +59,15 @@ class App:
     def _discover(self):
         while True:
             for type in camera_types:
-                cam_ips = type.discover(iface=self._discover_iface)
-                for cam_ip in cam_ips:
-                    if cam_ip not in self._control_threads:
-                        thread = CameraControlThread(self, cam_ip, type)
-                        thread.start()
-                        self._control_threads[cam_ip] = thread
+                try:
+                    cam_ips = type.discover(iface=self._discover_iface)
+                    for cam_ip in cam_ips:
+                        if cam_ip not in self._control_threads:
+                            thread = CameraControlThread(self, cam_ip, type)
+                            thread.start()
+                            self._control_threads[cam_ip] = thread
+                except:
+                    traceback.print_exc()
 
             time.sleep(10)
 
