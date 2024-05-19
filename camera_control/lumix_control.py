@@ -19,6 +19,7 @@ class LumixCameraControl(CameraControl):
     def __init__(self, cam_ip):
         self.cam_ip = cam_ip
         self.baseurl = "http://" + self.cam_ip + "/cam.cgi"
+        self.name = f"Panasonic ({self.cam_ip})"
 
     @classmethod
     def discover(cls, iface=None):
@@ -36,7 +37,7 @@ class LumixCameraControl(CameraControl):
         self._check_response(resp)
         return self
 
-    def __exit__(self):
+    def __exit__(self, *args):
         pass
 
     def prepare(self):

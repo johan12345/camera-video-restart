@@ -1,9 +1,11 @@
 #!/usr/bin/python3
 
 import datetime as dt
+import os
 import threading
 import time
 import traceback
+import re
 from typing import Optional
 
 from flask import Flask, request
@@ -16,13 +18,16 @@ camera_types = [LumixCameraControl, SonyCameraControl]
 
 
 class App:
-    def __init__(self, host="0.0.0.0", port=8000, discover_iface="ap0"):
+    def __init__(self, host="0.0.0.0", port=8000):
         self.should_record = False
         self._control_threads = {}
         self._discover_thread = threading.Thread(target=self._discover, daemon=True)
         self._host = host
         self._port = port
-        self._discover_iface = discover_iface
+
+        interface_regex = re.compile(r"^(wlan|ap)\d+$")
+        self._discover_interfaces = [dev for dev in os.listdir("/sys/class/net/") if interface_regex.match(dev)]
+        print(f"discovering on interfaces: {self._discover_interfaces}")
 
         self._app = Flask(__name__)
         self._app.add_url_rule("/", view_func=self._serve_index)
@@ -40,10 +45,10 @@ class App:
         return {
             "should_record": self.should_record,
             "cameras": {
-                ip: {
+                self._control_threads[ip].cam_name: {
                     "connected": self._control_threads[ip].connected,
                     "rec": self._control_threads[ip].cam_state.recording if self._control_threads[ip].cam_state is not None else None,
-                    "remaining": self._control_threads[ip].cam_state.remaining.total_seconds() if self._control_threads[ip].cam_state is not None else None,
+                    "remaining": self._control_threads[ip].cam_state.remaining.total_seconds() if self._control_threads[ip].cam_state is not None and self._control_threads[ip].cam_state.remaining is not None else None,
                 } for ip in self._control_threads
             }
         }
@@ -59,15 +64,16 @@ class App:
     def _discover(self):
         while True:
             for type in camera_types:
-                try:
-                    cam_ips = type.discover(iface=self._discover_iface)
-                    for cam_ip in cam_ips:
-                        if cam_ip not in self._control_threads:
-                            thread = CameraControlThread(self, cam_ip, type)
-                            thread.start()
-                            self._control_threads[cam_ip] = thread
-                except:
-                    traceback.print_exc()
+                for interface in self._discover_interfaces:
+                    try:
+                        cam_ips = type.discover(iface=interface)
+                        for cam_ip in cam_ips:
+                            if cam_ip not in self._control_threads:
+                                thread = CameraControlThread(self, cam_ip, type)
+                                thread.start()
+                                self._control_threads[cam_ip] = thread
+                    except:
+                        traceback.print_exc()
 
             time.sleep(10)
 
@@ -79,6 +85,7 @@ class CameraControlThread(threading.Thread):
 
         self.connected = False
         self.cam_state: Optional[CameraState] = None
+        self.cam_name = None
         self._app = app
 
         super().__init__(name=f"{type.__name__}({ip})", daemon=True)
@@ -90,6 +97,7 @@ class CameraControlThread(threading.Thread):
             try:
                 with self._control:
                     self.connected = True
+                    self.cam_name = self._control.name
 
                     self._control.prepare()
 
@@ -103,8 +111,7 @@ class CameraControlThread(threading.Thread):
                             should_restart = False
                             if self.cam_state.recording is not None:
                                 # restart if recording has stopped or less than 10s remaining
-                                should_restart = not self.cam_state.recording or self.cam_state.remaining < dt.timedelta(
-                                    seconds=10)
+                                should_restart = not self.cam_state.recording or self.cam_state.remaining is not None and self.cam_state.remaining < dt.timedelta(seconds=10)
                             elif self.cam_state.remaining is not None:
                                 # restart if recording has not yet been started or remaining time has increased significantly
                                 should_restart = self.cam_state.remaining > prev_remaining + dt.timedelta(
