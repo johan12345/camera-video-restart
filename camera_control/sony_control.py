@@ -1,8 +1,6 @@
 import json
-import subprocess
-from time import sleep
-from typing import List
 from urllib.parse import urlparse
+import datetime as dt
 
 import requests
 from ssdpy import SSDPClient
@@ -83,10 +81,13 @@ class SonyCameraControl(CameraControl):
         pass
 
     def get_state(self) -> CameraState:
-        result = self._post_request("getEvent", False)["result"]
+        result = self._post_request("getEvent", False, version="1.2")["result"]
         camera_status = result[1]["cameraStatus"]
         recording = camera_status in ["MovieWaitRecStart", "MovieRecording", "MovieWaitRecStop", "MovieSaving"]
-        return CameraState(recording, None)
+
+        recording_time = result[57]["recordingTime"]
+        time = dt.timedelta(minutes=30) - dt.timedelta(seconds=recording_time) if recording_time >= 0 else dt.timedelta(minutes=30)
+        return CameraState(recording, time)
 
     def video_record_start(self):
         self._post_request("startMovieRec")
@@ -94,12 +95,12 @@ class SonyCameraControl(CameraControl):
     def video_record_stop(self):
         self._post_request("stopMovieRec")
 
-    def _post_request(self, method, *params):
+    def _post_request(self, method, *params, version="1.0"):
         """
         sends post request to url with method and param as json
         """
         url = self.api_service_urls["camera"] + "/camera"
-        json_request = {"method": method, "params": params, "id": 1, "version": "1.0"}
+        json_request = {"method": method, "params": params, "id": 1, "version": version}
         request = requests.post(url, json.dumps(json_request))
         response = json.loads(request.content)
         if "error" in list(response.keys()):

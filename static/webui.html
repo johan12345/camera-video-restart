@@ -75,7 +75,7 @@
 				document.getElementById("connected-icon-" + ip).innerHTML = camData["connected"] ? "✅" : "❌";
 				document.getElementById("connected-text-" + ip).innerHTML = camData["connected"] ? "Camera connected" : "Camera not connected";
 				document.getElementById("rec-" + ip).innerHTML = camData["rec"] ? (data["should_record"] ? "⏺️ Recording" : "⏺️ stopping recording...") : camData["rec"] === false ? (data["should_record"] ? "⏸️ starting recording..." : "⏸️ Paused") : "❔ state unknown";
-				document.getElementById("remaining-" + ip).innerHTML = camData["remaining"] ? Math.floor(camData["remaining"] / 60) + ":" + camData["remaining"] % 60 + " remaining" : "";
+				document.getElementById("remaining-" + ip).innerHTML = camData["remaining"] ? Math.floor(camData["remaining"] / 60).toLocaleString('en-US', {minimumIntegerDigits: 2, useGrouping:false}) + ":" + (camData["remaining"] % 60).toLocaleString('en-US', {minimumIntegerDigits: 2, useGrouping:false}) + " remaining" : "";
 			}
 			
 			document.getElementById("control-button").className = data["should_record"] ? "stop" : "start"
