@@ -6,6 +6,7 @@ import threading
 import time
 import traceback
 import re
+import logging
 from typing import Optional
 
 from flask import Flask, request
@@ -15,6 +16,8 @@ from camera_control.lumix_control import LumixCameraControl
 from camera_control.sony_control import SonyCameraControl
 
 camera_types = [LumixCameraControl, SonyCameraControl]
+
+logger = logging.getLogger(__name__)
 
 
 class App:
@@ -27,7 +30,7 @@ class App:
 
         interface_regex = re.compile(r"^(wlan|ap)\d+$")
         self._discover_interfaces = [dev for dev in os.listdir("/sys/class/net/") if interface_regex.match(dev)]
-        print(f"discovering on interfaces: {self._discover_interfaces}")
+        logger.info(f"discovering on interfaces: {self._discover_interfaces}")
 
         self._app = Flask(__name__)
         self._app.add_url_rule("/", view_func=self._serve_index)
@@ -91,13 +94,14 @@ class CameraControlThread(threading.Thread):
         super().__init__(name=f"{type.__name__}({ip})", daemon=True)
 
     def run(self):
-        print(f"Camera control starting for {self.ip}")
+        logger.info(f"Camera control starting for {self.ip}")
         while True:
             self.connected = False
             try:
                 with self._control:
                     self.connected = True
                     self.cam_name = self._control.name
+                    logger.debug(f"Camera {self.cam_name} connected")
 
                     self._control.prepare()
 
@@ -105,6 +109,7 @@ class CameraControlThread(threading.Thread):
                     started = False
                     while True:
                         self.cam_state = self._control.get_state()
+                        logger.debug(f"Camera {self.cam_name} state is {self.cam_state}")
 
                         should_record = self._app.should_record
                         if should_record:
@@ -118,7 +123,7 @@ class CameraControlThread(threading.Thread):
                                     minutes=1) or not started
 
                             if should_restart:
-                                print('restarting recording for {}'.format(self.ip))
+                                logger.info('restarting recording for {}'.format(self.ip))
                                 try:
                                     self._control.video_record_stop()
                                 except:
@@ -128,7 +133,7 @@ class CameraControlThread(threading.Thread):
                                 started = True
                         else:
                             if self.cam_state.recording or started:
-                                print('stopping recording for {}'.format(self.ip))
+                                logger.info('stopping recording for {}'.format(self.ip))
                                 try:
                                     self._control.video_record_stop()
                                 except:
@@ -137,6 +142,7 @@ class CameraControlThread(threading.Thread):
                         prev_remaining = self.cam_state.remaining
                         time.sleep(1)
             except:
+                logger.debug(f"Camera {self.cam_name} disconnected")
                 traceback.print_exc()
                 time.sleep(5)
                 pass

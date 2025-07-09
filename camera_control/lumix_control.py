@@ -6,6 +6,9 @@ from ssdpy import SSDPClient
 from . import CameraControl, CameraState
 import xml.etree.ElementTree as ET
 import datetime as dt
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class LumixCameraControl(CameraControl):

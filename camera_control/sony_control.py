@@ -3,10 +3,15 @@ from urllib.parse import urlparse
 import datetime as dt
 
 import requests
+import logging
 from ssdpy import SSDPClient
 
 from camera_control import CameraControl, CameraState
 import xml.etree.ElementTree as ET
+
+logging.basicConfig(level=logging.DEBUG)
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_list(data):
@@ -104,8 +109,8 @@ class SonyCameraControl(CameraControl):
         request = requests.post(url, json.dumps(json_request))
         response = json.loads(request.content)
         if "error" in list(response.keys()):
-            print("Error: ")
-            print(response)
+            logger.error("Error: ")
+            logger.error(response)
         else:
             return response
 
