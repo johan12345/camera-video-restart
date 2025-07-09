@@ -45,7 +45,7 @@ class App:
         return {
             "should_record": self.should_record,
             "cameras": {
-                self._control_threads[ip].cam_name: {
+                self._control_threads[ip].cam_name if self._control_threads[ip].cam_name is not None else ip: {
                     "connected": self._control_threads[ip].connected,
                     "rec": self._control_threads[ip].cam_state.recording if self._control_threads[ip].cam_state is not None else None,
                     "remaining": self._control_threads[ip].cam_state.remaining.total_seconds() if self._control_threads[ip].cam_state is not None and self._control_threads[ip].cam_state.remaining is not None else None,
